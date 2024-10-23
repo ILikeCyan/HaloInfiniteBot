@@ -1,42 +1,52 @@
-import discord
-from discord.ext import commands
-import random
+import asyncio
 import copy
-import os
-from dotenv import load_dotenv
-import logging
-from logging_setup import setup_logging
 import json
-from datetime import datetime
+import logging
+import os
+import random
 import threading
+from datetime import datetime
+import discord
+from aiohttp import ClientSession
+from discord.ext import commands
+from dotenv import main, load_dotenv
+from spnkr import HaloInfiniteClient
+from spnkr import client
 
-setup_logging()
 
 # Load environment variables
 load_dotenv()
 token = os.environ.get("DISCORD_BOT_TOKEN")
 
 # Initialize the bot with intents
-intents = discord.Intents.default()
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
-
 
 OBJS = {
     "Capture the Flag": ["Aquarius", "Argyle", "Empyrean", "Forbidden"],
     "Oddball": ["Live Fire", "Recharge", "Streets"],
-    "Strongholds": ["Live Fire", "Recharge", "Solitude"],
-    "King of the Hill": ["Live Fire", "Recharge", "Solitude"],
+    "Strongholds": ["Live Fire", "Recharge", "Solitude", "Interference"],
+    "King of the Hill": ["Live Fire", "Recharge", "Solitude", "Interference"],
 }
-SLAYER = ["Aquarius", "Live Fire", "Recharge", "Streets", "Solitude"]
+SLAYER = ["Aquarius", "Live Fire", "Recharge", "Streets", "Solitude", "Interference"]
+
+SLAYER2 = ["Aquarius", "Live Fire", "Recharge", "Octagon", "Solitude"]
+
+SLAYER3 = ["Aquarius", "Live Fire", "Recharge", "Empyrean", "Solitude", "Streets", "Banished Narrows", "Sylvanus"]
+
+
+#spag code but fuck it
+
 
 def pick_map(available_maps, picked_maps, last_n=2):
     """
-    Pick a map ensuring it wasn't picked in the last_n matches
+    Pick a map ensuring it wasn't picked in the last_n matchesStreets
     """
     valid_maps = list(set(available_maps) - set(picked_maps[-last_n:]))
     if valid_maps:
         return random.choice(valid_maps)
     return None
+
 
 def series(length, OBJS, SLAYER):
     gts = list(OBJS)
@@ -71,45 +81,80 @@ def series(length, OBJS, SLAYER):
 
     return games
 
+
+def t1(SLAYER3):
+    picked_gt = []
+    picked_maps = []
+    games = []
+    cur_map = []
+
+    slayer_maps = copy.deepcopy(SLAYER3)
+    picked_maps = []
+    i = 0
+
+    while i < 3:
+        map1 = str(random.choice(slayer_maps))
+        games.append("Slayer - " + str(map1))
+        picked_maps.append(games)
+        slayer_maps.remove(map1)
+        print(picked_maps)
+        i += 1
+
+    return games
+
+
+def headtohead(SLAYER2):
+    picked_gt = []
+    picked_maps = []
+    games = []
+    cur_map = []
+
+    slayer_maps = copy.deepcopy(SLAYER2)
+    picked_maps = []
+    cur_map = pick_map(slayer_maps, picked_maps, 4)
+    if cur_map:
+        picked_maps.append(cur_map)
+        slayer_maps.remove(cur_map)
+        games.append(f"Slayer - {cur_map}")
+    return games
+
+
 def create_embed(matches, length):
-    embed = discord.Embed(title="BO" + str(length) + " Series",
+    embed = discord.Embed(title="Best Of " + str(length) + " Series",
                           description="Maps to be played in best of " + str(length) + " series")
     embed.set_thumbnail(
-        url="https://i1.wp.com/www.thexboxhub.com/wp-content/uploads/2022/02/halo-infinite-header.jpg?fit=1083%2C609&ssl=1")
+        url="https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.indiamilletinitiative.org%2Fhalo-memes-clean-q-25504420&psig=AOvVaw0ao5maoZra7Btv16-Fb-le&ust=1718669808263000&source=images&cd=vfe&opi=89978449&ved=0CBEQjRxqFwoTCIia65au4YYDFQAAAAAdAAAAABAE")
 
     for i in range(len(matches)):
         embed.add_field(name="Game " + str(i + 1), value=matches[i], inline=False)
 
     return embed
 
-def coinflip():
-    percent = random.randint(0, 100);
-    if percent < 50:
-        return "Heads"
-    elif percent > 50:
-        return "Tails"
-    else:
-        return "You're both losers!"
 
 def rand_number():
     return random.randint(1, 10)
 
-COMMAND_LOG_COUNT = {'BO3': 0, 'BO5': 0, 'BO7': 0, 'Coinflip': 0, 'Number': 0}
+
+COMMAND_LOG_COUNT = {'BO3': 0, 'BO5': 0, 'BO7': 0, 'Acc': 0, '2v2': 0, 'headtohead': 0}
+
 
 def handle_bo_command(length, message):
-    matches = series(length, OBJS, SLAYER)
+    matches = series(length, OBJS, SLAYER, SLAYER2, SLAYER3)
     embed = create_embed(matches, length)
     COMMAND_LOG_COUNT[f'BO{length}'] += 1
     return embed
 
+
 COMMANDS = {
     '!bo3': lambda m: handle_bo_command(3, m),
     '!bo5': lambda m: handle_bo_command(5, m),
+    '!headtohead': lambda m: handle_bo_command(1, 1),
     '!bo7': lambda m: handle_bo_command(7, m),
-    '!coinflip': lambda m: coinflip(),
-    '!number': lambda m: rand_number(),
+    '!2v2': lambda m: handle_bo_command(3, 5),
+    '!acc': lambda m: main(),
     '!botservers': lambda m: f"I'm in {len(client.guilds)} servers!"
 }
+
 
 class MatchCommands(commands.Cog):
     def __init__(self, bot):
@@ -121,6 +166,13 @@ class MatchCommands(commands.Cog):
         embed = create_embed(matches, 3)
         await interaction.response.send_message(embed=embed)
         COMMAND_LOG_COUNT['BO3'] += 1
+
+    @discord.app_commands.command(name="headtohead", description="Starts a 1v1")
+    async def headtohead(self, interaction: discord.Interaction):
+        matches = headtohead(SLAYER2)
+        embed = create_embed(matches, 1)
+        await interaction.response.send_message(embed=embed)
+        COMMAND_LOG_COUNT['headtohead'] += 1
 
     @discord.app_commands.command(name="bo5", description="Starts a BO5 series")
     async def bo5(self, interaction: discord.Interaction):
@@ -136,31 +188,33 @@ class MatchCommands(commands.Cog):
         await interaction.response.send_message(embed=embed)
         COMMAND_LOG_COUNT['BO7'] += 1
 
-    @discord.app_commands.command(name="coinflip", description="Flips a coin")
-    async def coinflip(self, interaction: discord.Interaction):
-        result = coinflip()  # Assuming coinflip() is defined elsewhere
-        await interaction.response.send_message(result)
-        COMMAND_LOG_COUNT['Coinflip'] += 1
+    @discord.app_commands.command(name="acc", description="Nothing")
+    async def acc(self, interaction: discord.Interaction):
+        await interaction.response.send_message("D")
+        COMMAND_LOG_COUNT['Acc'] += 1
 
-    @discord.app_commands.command(name="number", description="Generates a random number")
-    async def number(self, interaction: discord.Interaction):
-        number = rand_number()  # Assuming rand_number() is defined elsewhere
-        await interaction.response.send_message(str(number))
-        COMMAND_LOG_COUNT['Number'] += 1
+    @discord.app_commands.command(name="2v2", description="2v2 Series")
+    async def t1(self, interaction: discord.Interaction):
+        matches = t1(SLAYER3)
+        embed = create_embed(matches, 3)
+        await interaction.response.send_message(embed=embed)
+        COMMAND_LOG_COUNT['2v2'] += 1
 
     @discord.app_commands.command(name="botservers", description="Shows the number of servers the bot is in")
     async def botservers(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"I'm in {len(self.bot.guilds)} servers!")
+        await interaction.response.send_message(f"I'm in {len(self.bot)} servers!")
 
 
 async def setup(bot):
     await bot.add_cog(MatchCommands(bot))
     await bot.tree.sync()
 
+
 @bot.event
 async def on_ready():
     await setup(bot)
     logging.info(f"We have logged in as {bot.user}")
+
 
 def checkTime():
     # This function runs periodically every hour
@@ -173,4 +227,6 @@ def checkTime():
 
 checkTime()
 
-bot.run(token)
+if __name__ == "__main__":
+    asyncio.run(main())
+    bot.run(token)
